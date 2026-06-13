@@ -1,0 +1,8 @@
+# flipper-os-lab — git ignores
+run/
+*.squashfs
+*.verity
+*.roothash
+*.btrfs
+*.ext4
+tampered.img
