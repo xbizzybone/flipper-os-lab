@@ -19,6 +19,7 @@
 #   profile clone  <id> <new>
 #   profile reset  <id>
 #   boot <id>            assemble + mount the overlay for profile <id>
+#   lint <id>            fail if the profile shadows a base file (anti-drift MUST)
 #   shell <id>           boot <id> and chroot into it (needs busybox in base)
 #   status               show mounts / loops / dm / subvolumes
 #   demo                 narrated end-to-end walkthrough
@@ -292,6 +293,52 @@ cmd_shell() {
   chroot "$ROOT_MNT" /usr/bin/sh || true
 }
 
+# ---------------------------------------------------------------- lint ------
+# RFC anti-drift MUST: "the profile build MUST fail if the upperdir contains any
+# path that also exists in the base image (a shadow/override), unless that path
+# is under a whitelisted drop-in directory." This is the build-time enforcement
+# of the drop-in-only discipline — the primary defence against config drift.
+#
+# Whitelisted drop-in surfaces a profile MAY write into (RFC §anti-drift):
+is_whitelisted() {
+  case "$1" in
+    profile.toml)                       return 0 ;;  # the manifest, not a base file
+    */conf.d/*)                         return 0 ;;  # flipper drop-ins
+    */*.d/*)                            return 0 ;;  # any *.d/ (systemd unit overrides, sysctl.d, modprobe.d, tmpfiles.d, sysusers.d)
+    etc/systemd/network/*.network)      return 0 ;;  # NN-*.network drop-ins
+    */udev/rules.d/*)                   return 0 ;;
+  esac
+  return 1
+}
+
+cmd_lint() {
+  need_root lint
+  local id="$1"; [ -n "$id" ] || die "usage: lint <id>"
+  is_mounted "$POOL_MNT" || die "run 'init' first"
+  profile_exists "$id" || die "no such profile '$id'"
+  open_base
+  step "Shadow lint: profile '$id' vs immutable base (RFC anti-drift MUST)"
+  local violations=0
+  while IFS= read -r -d '' f; do
+    local rel="${f#"$POOL_MNT/$id/"}"
+    # Only a regular file shadowing a regular base file is a violation; dirs
+    # overlapping is normal for OverlayFS.
+    if [ -f "$BASE_MNT/$rel" ]; then
+      if is_whitelisted "$rel"; then
+        ok "drop-in (allowed): $rel"
+      else
+        warn "SHADOW: '$rel' overrides a base file"
+        violations=$((violations + 1))
+      fi
+    fi
+  done < <(find "$POOL_MNT/$id" -type f -print0)
+  echo
+  if [ "$violations" -gt 0 ]; then
+    die "lint FAILED: profile '$id' shadows $violations base file(s) — forbidden by the RFC anti-drift rule (use a *.d/ drop-in instead)"
+  fi
+  ok "lint passed: '$id' writes only drop-ins, shadows no base file"
+}
+
 # -------------------------------------------------------------- status ------
 cmd_status() {
   step "Mounts"; mount | grep -E "$LAB_ROOT" || echo "  (none)"
@@ -356,8 +403,19 @@ cmd_demo() {
   step "6) Profiles now on the device"
   profile_list
 
+  step "7) Anti-drift shadow lint (RFC MUST: profiles never shadow base files)"
+  cmd_lint router
+  echo "  -> now plant an illegal shadow (overwrite a base file in the upper)..."
+  echo "i am illegally shadowing the base" > "$POOL_MNT/router/etc/flipper/base.conf"
+  if cmd_lint router >/dev/null 2>&1; then
+    warn "lint did NOT catch the shadow (unexpected)"
+  else
+    ok "lint REJECTED the planted shadow of etc/flipper/base.conf (drift blocked)"
+  fi
+  rm -f "$POOL_MNT/router/etc/flipper/base.conf"   # undo the planted violation
+
   if [ "$NOVERITY" != "1" ]; then
-    step "7) dm-verity integrity: tamper detection"
+    step "8) dm-verity integrity: tamper detection"
     cp "$BASE_IMG" "$LAB_ROOT/tampered.img"
     # flip bytes *inside* the hashed data area (midpoint), so verity actually sees it
     local _sz _off; _sz="$(stat -c%s "$LAB_ROOT/tampered.img")"; _off=$(( _sz / 2 ))
@@ -393,6 +451,7 @@ case "$cmd" in
       *) die "usage: profile {list|create <id>|clone <id> <new>|reset <id>}" ;;
     esac ;;
   boot)     cmd_boot "${1:-}" ;;
+  lint)     cmd_lint "${1:-}" ;;
   shell)    cmd_shell "${1:-}" ;;
   status)   cmd_status ;;
   demo)     cmd_demo ;;

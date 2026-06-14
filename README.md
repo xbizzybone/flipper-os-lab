@@ -15,6 +15,7 @@ genuine kernel feature, just on files instead of eMMC.
 | Reset to pristine, no re-flash | `profile reset` restores from a read-only pristine snapshot |
 | `/data` survives reset **and** base swap | separate partition, bind-mounted; survives every reset |
 | No `/etc` drift | profiles only write drop-ins under `conf.d/`, never shadow a base file |
+| Drift is mechanically blocked | `lint` fails the profile if its upper shadows any base file (RFC anti-drift **MUST**) — the demo plants an illegal shadow and watches it get rejected |
 | `base_min_version` guard | `boot` refuses a profile whose required base version doesn't match |
 | Boot = assemble overlay from a selection | `boot <id>` does exactly what the initramfs hook does for `flipper.profile=<id>` |
 
@@ -40,7 +41,8 @@ sudo ./lab.sh demo        # full narrated end-to-end walkthrough
 ```
 
 `demo` builds the base, creates two profiles, boots one, writes runtime changes,
-clones it, breaks it, resets it, proves `/data` survived, and verifies dm-verity
+clones it, breaks it, resets it, proves `/data` survived, runs the anti-drift
+shadow lint (and watches it reject a planted shadow), and verifies dm-verity
 tamper detection — then tears everything down.
 
 ### Driving it by hand
@@ -51,6 +53,7 @@ sudo ./lab.sh init                       # Btrfs profiles pool + /data
 sudo ./lab.sh profile create router
 sudo ./lab.sh profile create network-multitool
 sudo ./lab.sh boot router                # assemble + mount the overlay
+sudo ./lab.sh lint router                # fail if the profile shadows a base file
 sudo ./lab.sh shell router               # (if busybox present) chroot in
 sudo ./lab.sh profile clone router router-test
 sudo ./lab.sh profile reset router       # back to pristine

@@ -1,4 +1,6 @@
 # flipper-os-lab — git ignores
+
+# Runtime artifacts (loop images, mounts, verity hashes)
 run/
 *.squashfs
 *.verity
@@ -6,3 +8,16 @@ run/
 *.btrfs
 *.ext4
 tampered.img
+
+# Host-specific scratch runners & throwaway logs (not part of the PoC)
+run_wsl_lab.sh
+*.vbs
+*.bat
+*.log
+*.log.gz
+docker_ps*.txt
+wsl_list.txt
+wsl_lab.log
+
+# Stray nested test repo, never commit
+test_git_tmp/
