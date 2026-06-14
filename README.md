@@ -1,5 +1,9 @@
 # flipper-os-lab — local PoC for the Flipper OS storage RFC
 
+[![Phase-0 PoC](https://github.com/xbizzybone/flipper-os-lab/actions/workflows/demo.yml/badge.svg)](https://github.com/xbizzybone/flipper-os-lab/actions/workflows/demo.yml)
+
+> Reference implementation for [flipperone-docs#361](https://github.com/flipperdevices/flipperone-docs/pull/361) — CI runs the full 8-step demo (incl. real dm-verity tamper detection + anti-drift lint) on every push.
+
 A self-contained lab that reproduces **Phase-0 of the Flipper OS storage architecture
 RFC** on your own machine — no RK3576 board, no QEMU. It builds the real storage stack
 on loop-backed disk images, so every mechanism (dm-verity, Btrfs, OverlayFS) is the
