@@ -407,7 +407,9 @@ cmd_demo() {
   cmd_lint router
   echo "  -> now plant an illegal shadow (overwrite a base file in the upper)..."
   echo "i am illegally shadowing the base" > "$POOL_MNT/router/etc/flipper/base.conf"
-  if cmd_lint router >/dev/null 2>&1; then
+  # Run in a subshell: cmd_lint calls die()->exit on a violation, so a subshell
+  # contains that exit and lets the `if` observe the non-zero status.
+  if ( cmd_lint router ) >/dev/null 2>&1; then
     warn "lint did NOT catch the shadow (unexpected)"
   else
     ok "lint REJECTED the planted shadow of etc/flipper/base.conf (drift blocked)"
