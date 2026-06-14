@@ -1,0 +1,49 @@
+name: Phase-0 PoC — Flipper OS storage layout
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  demo:
+    name: squashfs + btrfs overlays + dm-verity (ubuntu-22.04)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q \
+            squashfs-tools \
+            cryptsetup \
+            btrfs-progs \
+            e2fsprogs \
+            util-linux \
+            busybox-static
+
+      - name: Load kernel modules
+        run: |
+          sudo modprobe squashfs
+          sudo modprobe overlay
+          sudo modprobe btrfs
+          sudo modprobe dm_verity
+
+      - name: Verify dm-verity target is present
+        run: sudo dmsetup targets | grep -i verity
+
+      - name: Run Phase-0 demo (all 7 steps including dm-verity tamper detection)
+        run: |
+          set -o pipefail
+          sudo bash lab.sh demo 2>&1 | tee /tmp/demo_raw.log
+          sed 's/\x1b\[[0-9;]*m//g' /tmp/demo_raw.log > demo_log.txt
+
+      - name: Upload demo log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase0-demo-log
+          path: demo_log.txt

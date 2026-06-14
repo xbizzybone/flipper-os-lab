@@ -1,0 +1,82 @@
+# flipper-os-lab Phase-0 PoC — demo run
+# Platform: ubuntu:22.04 (Docker --privileged, WSL2 kernel)
+# WSL2 notes: squashfs -comp gzip (zstd unavailable), NOVERITY=1 (no dm-verity)
+# Date: 2026-06-14
+# Exit code: 0
+
+========== Checking dependencies ==========
+ok mksquashfs
+ok veritysetup
+ok mkfs.btrfs
+ok btrfs
+ok mkfs.ext4
+ok losetup
+
+ok kernel: overlay
+ok kernel: squashfs
+ok kernel: btrfs
+!! kernel module 'dm_verity' not obviously available
+!!   -> if dm-verity is unavailable, run with NOVERITY=1
+ok dependencies satisfied
+
+========== Building read-only base (squashfs + dm-verity) ==========
+!! busybox not found on host — 'shell' will be limited; install busybox-static for chroot demo
+[===================================================================|] 4/4 100%
+ok squashfs: /tmp/flab/run/base.squashfs (4.0K)
+!! NOVERITY=1 — skipping dm-verity hash generation
+ok base built
+
+========== Initialising storage (profiles pool + /data) ==========
+NOTE: several default settings have changed in version 5.15, please make sure
+      this does not affect your deployments:
+      - DUP for metadata (-m dup)
+      - enabled no-holes (-O no-holes)
+      - enabled free-space-tree (-R free-space-tree)
+
+ok profiles pool mounted at /tmp/flab/run/mnt/profiles (Btrfs)
+ok /data mounted at /tmp/flab/run/mnt/data (persistent)
+ok profile 'router' created (+ pristine snapshot)
+ok profile 'network-multitool' created (+ pristine snapshot)
+
+========== 1) Boot 'router' and write a RUNTIME change into the overlay ==========
+
+========== Booting profile 'router'  (initramfs equivalent of: flipper.profile=router) ==========
+ok merged root mounted at: /tmp/flab/run/mnt/root
+
+  base version : 1.4.0
+  base config  : hostname = flipper-lab
+  profile drop-in present: 10-router.conf
+  /data marker : created 2026-06-14T01:13:48+00:00
+ok wrote 99-runtime.conf (overlay) and ~/wg.key (/data)
+  -> landed in overlay upper? 10-router.conf 99-runtime.conf 
+  -> base squashfs untouched (still read-only, immutable)
+
+========== 2) Clone 'router' -> 'router-test' (instant, copy-on-write) ==========
+ok cloned 'router' -> 'router-test' (copy-on-write, O(metadata))
+
+========== 3) BREAK 'router' (simulate a bad experiment) ==========
+!! router profile messed up
+
+========== 4) RESET 'router' to pristine — one command, no re-flash ==========
+ok profile 'router' reset to pristine
+  -> 99-runtime.conf gone?  YES, restored
+  -> 10-router.conf back?   YES
+
+========== 5) /data SURVIVED the reset (the whole point of the separate partition) ==========
+  -> wg.key still present? YES
+
+========== 6) Profiles now on the device ==========
+
+========== Profiles ==========
+  - network-multitool
+  - router-test
+  - router
+
+========== Tearing down ==========
+ok unmounted. Disk images kept under /tmp/flab/run (delete the dir to wipe).
+
+ok demo complete — that's Phase-0 of the RFC working on your machine.
+   Next: wire the 'boot' logic into a real initramfs hook (see initramfs/flipper-overlay.sh)
+   then move to QEMU aarch64 to add U-Boot A/B + RAUC rollback.
+--- lab.sh exit code: 0 ---
+=== ALL DONE ===
