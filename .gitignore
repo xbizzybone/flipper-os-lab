@@ -21,3 +21,6 @@ wsl_lab.log
 
 # Stray nested test repo, never commit
 test_git_tmp/
+
+# Internal collaboration notes (private handoff, not for the public repo)
+COLLABORATION-STATUS.md
