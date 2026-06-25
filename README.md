@@ -79,6 +79,40 @@ changes on real hardware is **where the profile id comes from**:
 - **Flipper One:** the MCU renders the boot menu and hands the selection to U-Boot
   over the Interconnect (`BOOT_SELECTION` I²C message), which sets that cmdline.
 
+## Alternative D — the all-Btrfs base (what the Flipper team is exploring)
+
+[`lab.sh`](lab.sh) implements the RFC's **proposed** Option A: a `squashfs + dm-verity`
+base. In [PR #361](https://github.com/flipperdevices/flipperone-docs/pull/361) the
+Flipper team (`alchark`) is exploring a different base — **everything on Btrfs**, so
+multiple bases coexist space-efficiently and clone/branch instantly via CoW. That's
+incompatible with whole-device dm-verity (verity needs a static block image), so the
+open question is integrity.
+
+[`altd.sh`](altd.sh) is a second, self-contained PoC of that direction — the **hybrid**
+we proposed back: an **all-Btrfs base sealed with `fs-verity`** (per-file integrity)
+instead of squashfs + dm-verity. It keeps native Btrfs CoW/branching **and** an
+integrity story. Same overlay/profile/`/data` model, one Btrfs pool.
+
+| Alternative-D claim | How `altd.sh` proves it |
+|---|---|
+| Base = immutable, integrity-checked | Btrfs subvolume, every file sealed with **`fs-verity`**; sealed files reject in-place writes (kernel `EPERM`) |
+| Multiple bases coexist cheaply | `base derive` = `btrfs subvolume snapshot` + delta; `base list` shows the new base's **Exclusive/excl ≈ the delta**, not a full copy (`btrfs filesystem du` + qgroups) |
+| Integrity without dm-verity | `base verify` re-measures every file vs its sealed digest, and shows a 1-byte change flips the `fs-verity` digest |
+| Same profile model | profiles are Btrfs subvolumes used as the OverlayFS `upperdir`; clone/reset via snapshots |
+| `/data` survives reset **and** base swap | separate partition, bind-mounted; demo boots one profile on base `1.4.0`, then on `1.5.0`, `/data` intact |
+| Real `>=` version guard | `boot <base> <profile>` refuses a base older than the profile's `base_min_version` (a proper version compare, improving on `lab.sh`'s exact-match) |
+| No `/etc` drift | the same anti-drift `lint` carries over unchanged |
+
+```bash
+sudo ./altd.sh demo            # full all-Btrfs + fs-verity walkthrough
+sudo ./altd.sh base list       # see the multi-base dedup accounting
+NOFSV=1 sudo ./altd.sh demo    # Btrfs-only fallback if the kernel lacks fs-verity
+```
+
+> **Requires** `fsverity btrfs-progs e2fsprogs util-linux` and a kernel with
+> `CONFIG_FS_VERITY=y` (Btrfs fs-verity needs ≥ 5.15). CI runs the full demo on
+> `ubuntu-24.04` on every push ([altd.yml](.github/workflows/altd.yml)).
+
 ## Roadmap from here
 
 1. **(this lab)** storage model: verity base + Btrfs overlay profiles + `/data`. ✅

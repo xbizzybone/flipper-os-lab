@@ -1,0 +1,40 @@
+name: Alternative-D PoC (all-Btrfs base + fs-verity)
+
+# Proves RFC "Alternative D" end-to-end on a real kernel: an immutable base as a
+# Btrfs subvolume sealed with fs-verity, multiple bases coexisting in one pool
+# via CoW (dedup), overlay profiles, /data survival, the anti-drift lint, and
+# fs-verity tamper detection. Sibling of demo.yml (which proves Option A:
+# squashfs + dm-verity). See PR flipperdevices/flipperone-docs#361.
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'altd.sh', '.github/workflows/altd.yml' ]
+  pull_request:
+    paths: [ 'altd.sh', '.github/workflows/altd.yml' ]
+  workflow_dispatch:
+
+jobs:
+  altd-demo:
+    # ubuntu-24.04 ships an Azure kernel in the 6.x line (>= 5.15) with
+    # CONFIG_FS_VERITY=y and fsverity-utils 1.5 in universe.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fsverity btrfs-progs e2fsprogs util-linux
+
+      - name: Environment sanity
+        run: |
+          uname -r
+          fsverity --version || true
+          btrfs --version
+          grep -s 'CONFIG_FS_VERITY=y' "/boot/config-$(uname -r)" \
+            && echo "fs-verity: built-in" \
+            || echo "fs-verity: NOT confirmed (demo would fall back to NOFSV=1)"
+
+      - name: Run the Alternative-D demo (full fs-verity fidelity)
+        run: sudo bash altd.sh demo
