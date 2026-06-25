@@ -1,8 +1,11 @@
 # flipper-os-lab — local PoC for the Flipper OS storage RFC
 
 [![Phase-0 PoC](https://github.com/xbizzybone/flipper-os-lab/actions/workflows/demo.yml/badge.svg)](https://github.com/xbizzybone/flipper-os-lab/actions/workflows/demo.yml)
+[![Alternative-D PoC](https://github.com/xbizzybone/flipper-os-lab/actions/workflows/altd.yml/badge.svg)](https://github.com/xbizzybone/flipper-os-lab/actions/workflows/altd.yml)
 
-> Reference implementation for [flipperone-docs#361](https://github.com/flipperdevices/flipperone-docs/pull/361) — CI runs the full 8-step demo (incl. real dm-verity tamper detection + anti-drift lint) on every push.
+> Reference implementation for [flipperone-docs#361](https://github.com/flipperdevices/flipperone-docs/pull/361). Two CI-green PoCs run on every push:
+> [`lab.sh`](lab.sh) — the proposed **Option A** (squashfs + real dm-verity), and
+> [`altd.sh`](altd.sh) — **Alternative D** (all-Btrfs base + fs-verity), the direction the Flipper team is exploring.
 
 A self-contained lab that reproduces **Phase-0 of the Flipper OS storage architecture
 RFC** on your own machine — no RK3576 board, no QEMU. It builds the real storage stack
